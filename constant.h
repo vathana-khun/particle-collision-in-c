@@ -2,4 +2,6 @@
 #define HEIGHT 600
 
 #define FPS 60 
-#define TARGET_FRAME FPS/1000
+#define FRAME_TARGET_TIME (1000/FPS)
+
+#define AMOUNT_PARTICLE 40

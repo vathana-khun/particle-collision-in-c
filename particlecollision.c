@@ -17,6 +17,8 @@ SDL_Renderer *renderer = NULL;
 bool game_is_running = false;
 int last_frame_time = 0;
 struct particle particles[AMOUNT_PARTICLE];
+float gravity;
+float collision_damping;
 int numParticles = sizeof(particles) / sizeof(particles[0]);
 
 
@@ -49,8 +51,9 @@ bool intialize_window(void){
 }
 
 void setup(){
-    
-    create_particle(particles, 20, numParticles);
+    gravity = 0.5f;
+    collision_damping = 0.9f;
+    create_particle(particles, 10, numParticles);
     // particles[0].position[0] = WIDTH/4;
     // particles[0].position[1] = HEIGHT/2;
     // particles[0].velocity[0] = 1;
@@ -85,13 +88,12 @@ void update(){
     if (time_to_wait >0 && time_to_wait <= FRAME_TARGET_TIME) {
         SDL_Delay(time_to_wait);
     }
-
     last_frame_time = SDL_GetTicks();
 
-    // update_particle(particles, numParticles);
+    update_particle(particles, numParticles);
     collision_detection(particles, numParticles);
     solve_collision(particles, numParticles);
-    update_particle(particles, numParticles);
+    
 
 }
 void render(){
@@ -172,11 +174,15 @@ void create_particle(struct particle p[], int r, int numParticles){
 
 void update_particle(struct particle p[], int numParticles){
     for(int i = 0; i < numParticles; i++){
-        float xspeed = p[i].velocity[0];
-        float yspeed = p[i].velocity[1];
+        float *x = &(p[i].position[0]);
+        float *y = &(p[i].position[1]);
+        float *xspeed = &(p[i].velocity[0]);
+        float *yspeed = &(p[i].velocity[1]);
 
-        p[i].position[0] += xspeed;
-        p[i].position[1] += yspeed;
+        *yspeed += gravity;
+
+        *x += *xspeed;
+        *y += *yspeed;
     }
 }
 
@@ -219,78 +225,81 @@ void solve_collision(struct particle p[], int numParticles){
         for(int j = i + 1 ; j< numParticles; j++){
             double d = sqrt((pow (p[i].position[0] - p[j].position[0],2)) + (pow (p[i].position[1] - p[j].position[1],2)));
             double min_dist = p[i].radius + p[j].radius; 
-            float m1 = 1;
-            float m2 = 1;       
+            float m1 = p[i].radius;
+            float m2 = p[i].radius;       
             if(d < min_dist){  
 
-               float x1 = p[i].position[0];
-               float y1 = p[i].position[1];
-               float v1_x = p[i].velocity[0];
-               float v1_y = p[i].velocity[1];
+                float x1 = p[i].position[0];
+                float y1 = p[i].position[1];
+                float v1_x = p[i].velocity[0];
+                float v1_y = p[i].velocity[1];
 
-               float x2 = p[j].position[0];
-               float y2 = p[j].position[1];
-               float v2_x = p[j].velocity[0];
-               float v2_y = p[j].velocity[1];
+                float x2 = p[j].position[0];
+                float y2 = p[j].position[1];
+                float v2_x = p[j].velocity[0];
+                float v2_y = p[j].velocity[1];
 
-               // calculated unit normal vector
-               float un_x = (x2 - x1) / d;
-               float un_y = (y2 - y1) / d;
-               
-               //calculated unit tagnent vector
-               float ut_x = un_y * -1;
-               float ut_y =  un_x;
+                // calculated unit normal vector
+                float un_x = (x2 - x1) / d;
+                float un_y = (y2 - y1) / d;
 
-               //Correct the first 
-               float correction = (d - min_dist);
-               float correction_x = un_x * correction / 2;
-               float correction_y = un_y * correction / 2; 
+                //calculated unit tagnent vector
+                float ut_x = un_y * -1;
+                float ut_y =  un_x;
 
-               x1 += correction_x;
-               y1 += correction_y;
+                //Correct the first 
+                float correction = (d - min_dist);
+                float correction_x = un_x * correction / 2;
+                float correction_y = un_y * correction / 2; 
 
-               x2 -= correction_x;
-               y2 -= correction_y;
+                x1 += correction_x;
+                y1 += correction_y;
 
-               // Calculated the Scalar Part.
-               float v1_n = (v1_x * un_x) + (v1_y * un_y);  
-               float v2_n = (v2_x * un_x) + (v2_y * un_y); 
-               float v1_t = (v1_x * ut_x) + (v1_y * ut_y);
-               float v2_t = (v2_x * ut_x) + (v2_y * ut_y);
+                x2 -= correction_x;
+                y2 -= correction_y;
 
-               float vf1_t = v1_t;
-               float vf2_t = v2_t;
+                // Calculated the Scalar Part.
+                float v1_n = (v1_x * un_x) + (v1_y * un_y);  
+                float v2_n = (v2_x * un_x) + (v2_y * un_y); 
+                float v1_t = (v1_x * ut_x) + (v1_y * ut_y);
+                float v2_t = (v2_x * ut_x) + (v2_y * ut_y);
 
-               float vf1_n = (( v1_n * (m1 - m2) + 2 * m2 * v2_n) / (m1+m2));
-               float vf2_n = (( v2_n * (m2 - m1) + 2 * m1 * v1_n) / (m1+m2));
+                float vf1_t = v1_t;
+                float vf2_t = v2_t;
 
-               //Converting to Vector
-               float vf1_n_x = vf1_n * un_x;
-               float vf1_n_y = vf1_n * un_y;
-               float vf2_n_x = vf2_n * un_x;
-               float vf2_n_y = vf2_n * un_y;    
+                float vf1_n = (( v1_n * (m1 - m2) + 2 * m2 * v2_n) / (m1+m2));
+                float vf2_n = (( v2_n * (m2 - m1) + 2 * m1 * v1_n) / (m1+m2));
 
-               float vf1_t_x = vf1_t * ut_x;
-               float vf1_t_y = vf1_t * ut_y;
-               float vf2_t_x = vf2_t * ut_x;
-               float vf2_t_y = vf2_t *ut_y;
+                //Converting to Vector
+                float vf1_n_x = vf1_n * un_x;
+                float vf1_n_y = vf1_n * un_y;
+                float vf2_n_x = vf2_n * un_x;
+                float vf2_n_y = vf2_n * un_y;    
 
-               float vf1_x = vf1_n_x + vf1_t_x;
-               float vf1_y = vf1_n_y + vf1_t_y;
-               float vf2_x = vf2_n_x + vf2_t_x;
-               float vf2_y = vf2_n_y + vf2_t_y;
-               
-               p[i].velocity[0] = vf1_x;
-               p[i].velocity[1] = vf1_y;
-               p[j].velocity[0] = vf2_x;
-               p[j].velocity[1] = vf2_y;
+                float vf1_t_x = vf1_t * ut_x;
+                float vf1_t_y = vf1_t * ut_y;
+                float vf2_t_x = vf2_t * ut_x;
+                float vf2_t_y = vf2_t *ut_y;
 
-               p[i].position[0] = x1;
-               p[i].position[1] = y1;
-               p[j].position[0] = x2;
-               p[j].position[1] = y2;
+                float vf1_x = vf1_n_x + vf1_t_x;
+                float vf1_y = vf1_n_y + vf1_t_y;
+                float vf2_x = vf2_n_x + vf2_t_x;
+                float vf2_y = vf2_n_y + vf2_t_y;
 
-              
+
+                p[i].velocity[0] = vf1_x;
+                p[i].velocity[1] = vf1_y;
+                p[j].velocity[0] = vf2_x;
+                p[j].velocity[1] = vf2_y;
+
+                p[i].velocity[0] *= collision_damping;
+                p[i].velocity[1] *= collision_damping;
+
+                p[i].position[0] = x1;
+                p[i].position[1] = y1;
+                p[j].position[0] = x2;
+                p[j].position[1] = y2;
+
             }
 
             }   

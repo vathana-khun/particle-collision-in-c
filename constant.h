@@ -1,7 +1,7 @@
-#define WIDTH 800
-#define HEIGHT 600
+#define WIDTH 400
+#define HEIGHT 400
 
 #define FPS 60
 #define FRAME_TARGET_TIME (1000/FPS)
 
-#define AMOUNT_PARTICLE 40
+#define AMOUNT_PARTICLE 100
